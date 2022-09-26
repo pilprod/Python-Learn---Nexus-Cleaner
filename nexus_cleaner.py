@@ -1,10 +1,15 @@
 from base64 import decode
+from cgi import print_arguments
 from multiprocessing.connection import answer_challenge
 from operator import index
 import os
+import re
+from unicodedata import name
+from unittest import result
 from webbrowser import get
 from dotenv import load_dotenv
 import requests
+import itertools
 import json
 
 load_dotenv()
@@ -15,42 +20,48 @@ base_url = 'https://' + os.environ["NEXUS_DOMAIN"] + '/service/rest/v1/component
 
 def getImages(url, repo):
   params = {'repository': repo}
-  continuationToken = 1
-  imagesFormating = []
-  imagesList = []
-  while continuationToken is not None:
+  images = []
+  while True:
     response = requests.get(url, auth=(auth[0],auth[1]), params=params)
     response = response.json()
-    if "continuationToken" in response:
-      cToken = {"continuationToken": response["continuationToken"]}
-      continuationToken = cToken['continuationToken']
-      params['continuationToken'] = continuationToken
-      images = response['items']
-      for image in images:
-        imageName = image['name']
-        imageVersion = image['version']
-        imageID = image['id']
-        imageFormat = '|{"id": "' + imageID + '", ' + '"name": "' + imageName + '", ' + '"version": "' + imageVersion + '"}'
-        imagesFormating.append(imageFormat)
-    imagesList.append(imagesFormating)
-  return imagesList
+    for image in response['items']:
+      imageName = image['name']
+      imageVersion = image['version']
+      imageID = image['id']
+      imageFormat = {
+        "id" : imageID,
+        "name" : imageName,
+        "version" : imageVersion
+        }
+      images.append(imageFormat)
 
-def formatImages(url, repo):
-  images = getImages(url, repo)
-  imagesString = ''.join(map(str, images))
-  imagesCleanString = imagesString.translate({ ord(c): None for c in "[']" })
-  imageList = imagesCleanString.split("|")
-  del imageList[0]
-  return imageList
+    continuationToken = response['continuationToken']
 
-# В процессе
-def sortedImages(url, repo):
+    if continuationToken is None:
+      break
+
+    cToken = {"continuationToken": response["continuationToken"]}
+    continuationToken = cToken['continuationToken']
+    params['continuationToken'] = continuationToken
+
+  return images
+
+
+def deleteList(url, repo):
   if repo != "nuget-hosted":
-    images = formatImages(url, repo)
-    for i in images:
-      print(i)
-    # print(images[1])
+    images = getImages(url, repo)
+    images.sort(key=lambda image: image['name'])
+    imagesList = itertools.groupby(images, lambda image: image['name'])
+
+    for name, group in imagesList:
+      print('name', name)
+      for i in group:
+        version = i['version']
+        result = re.search(r'\D', version[0])
+        if result == None:
+          print(version)
+    # print(imagesNameList)
   else:
     print("This In nuget")
 
-print(sortedImages(base_url, repo[0]))
+print(deleteList(base_url, repo))
