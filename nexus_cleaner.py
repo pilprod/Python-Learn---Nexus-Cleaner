@@ -35,6 +35,8 @@ all_count = int(os.environ["ALL_COUNT"])
 nuget_release_count = int(os.environ["NUGET_RELEASE_COUNT"])
 nuget_count = int(os.environ["NUGET_COUNT"])
 
+# Для запуска удаления в .env изменить значение READY_TO_DEL на True
+rtd = os.environ["READY_TO_DEL"]
 
 def getImages(url, repo):
   params = {'repository': repo}
@@ -68,9 +70,7 @@ def getIntVersion(intversion):
   return intversion["intversion"]
 
 def deleteList(url, repo):
-
   versionsToDel = []
-
   images = getImages(url, repo)
   images.sort(key=lambda image: image['name'])
   imagesList = itertools.groupby(images, lambda image: image['name'])
@@ -156,8 +156,23 @@ def deleteList(url, repo):
   return versionsToDel
 
 def deleteComponents(url, repo):
+  ids = deleteList(url, repo)
+  for id in ids:
+    idsToDel = id["id"]
+    urlToDel = url + '/' + idsToDel
+    response = requests.delete(urlToDel, auth=(auth[0],auth[1]))
 
-  for r in repo:
-    deleteList(url, r)
+def main(url, repo):
+  if rtd == "True":
+    logger.warning("УДАЛЕНИЕ ЗАПУЩЕНО!!! Для отключения удаления в .env изменить значение READY_TO_DEL на False")
+    # for r in repo:
+      # deleteComponents(url, r)
+    logger.warning("Компоненты удалены!!!")
+  else:
+    logger.warning("Удаление не включено. Для запуска удаления в .env изменить значение READY_TO_DEL на True")
+    for r in repo:
+      deleteList(url, r)
+    logger.warning("Удаление не включено. Для запуска удаления в .env изменить значение READY_TO_DEL на True")
 
-deleteComponents(base_url, repo)
+
+main(base_url, repo)
