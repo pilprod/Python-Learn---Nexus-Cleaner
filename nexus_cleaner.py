@@ -160,7 +160,7 @@ def deleteComponents(url, repo):
   for id in ids:
     idsToDel = id["id"]
     urlToDel = url + '/' + idsToDel
-    response = requests.delete(urlToDel, auth=(auth[0],auth[1]))
+    requests.delete(urlToDel, auth=(auth[0],auth[1]))
 
 def main(url, repo):
   if rtd == "True":
