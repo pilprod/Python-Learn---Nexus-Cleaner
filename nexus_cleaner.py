@@ -165,8 +165,8 @@ def deleteComponents(url, repo):
 def main(url, repo):
   if rtd == "True":
     logger.warning("УДАЛЕНИЕ ЗАПУЩЕНО!!! Для отключения удаления в .env изменить значение READY_TO_DEL на False")
-    # for r in repo:
-      # deleteComponents(url, r)
+    for r in repo:
+      deleteComponents(url, r)
     logger.warning("Компоненты удалены!!!")
   else:
     logger.warning("Удаление не включено. Для запуска удаления в .env изменить значение READY_TO_DEL на True")
