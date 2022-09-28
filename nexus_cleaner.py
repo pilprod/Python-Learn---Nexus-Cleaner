@@ -31,6 +31,11 @@ repo = os.environ["REPOS"].split(",")
 auth = (os.environ["NEXUS_USER"], os.environ["NEXUS_PASSWORD"])
 base_url = 'https://' + os.environ["NEXUS_DOMAIN"] + '/service/rest/v1/components'
 
+all_count = int(os.environ["ALL_COUNT"])
+nuget_release_count = int(os.environ["NUGET_RELEASE_COUNT"])
+nuget_count = int(os.environ["NUGET_COUNT"])
+
+
 def getImages(url, repo):
   params = {'repository': repo}
   images = []
@@ -66,14 +71,13 @@ def deleteList(url, repo):
 
   versionsToDel = []
 
+  images = getImages(url, repo)
+  images.sort(key=lambda image: image['name'])
+  imagesList = itertools.groupby(images, lambda image: image['name'])
+
   # Политика удаления для всех образов
   if repo != "nuget-hosted":
-    images = getImages(url, repo)
-    images.sort(key=lambda image: image['name'])
-    imagesList = itertools.groupby(images, lambda image: image['name'])
-
     for name, group in imagesList:
-      # print('name', name)
       versions = []
       for i in group:
         version = i['version']
@@ -90,7 +94,7 @@ def deleteList(url, repo):
             "intversion" : ve
           }
           versions.append(ver)
-      versionsLarg = heapq.nlargest(5, versions, key=getIntVersion)
+      versionsLarg = heapq.nlargest(all_count, versions, key=getIntVersion)
       for a in versions:
         vers = int(a["intversion"])
         versionSmall = versionsLarg[-1]
@@ -100,7 +104,42 @@ def deleteList(url, repo):
 
   # Политика удаленния для репозиторя nuget-hosted
   else:
-    print("This In nuget")
+    for name, group in imagesList:
+      versions = []
+      for i in group:
+        version = i['version']
+        id = i['id']
+        name = i['name']
+
+        result = re.search(r'[a-zA-Z]', version)
+
+        v = re.sub(r'\D', '', version)
+        ve = int(v)
+        ver = {
+          "id" : id,
+          "name" : name,
+          "version" : version,
+          "intversion" : ve
+        }
+        versions.append(ver)
+      # Только цифры
+      if result == None:
+        versionsLarg = heapq.nlargest(nuget_release_count, versions, key=getIntVersion)
+        for a in versions:
+          vers = int(a["intversion"])
+          versionSmall = versionsLarg[-1]
+          versi = int(versionSmall["intversion"])
+          if vers < versi:
+            versionsToDel.append(a)
+      # Остальное
+      else:
+        versionsLarg = heapq.nlargest(nuget_count, versions, key=getIntVersion)
+        for a in versions:
+          vers = int(a["intversion"])
+          versionSmall = versionsLarg[-1]
+          versi = int(versionSmall["intversion"])
+          if vers < versi:
+            versionsToDel.append(a)
 
   logger.warning("Компоненты на удаление: ")
 
@@ -114,7 +153,11 @@ def deleteList(url, repo):
       "version" : _v
     }
     logger.info(component)
-
   return versionsToDel
 
-deleteList(base_url, repo)
+def deleteComponents(url, repo):
+
+  for r in repo:
+    deleteList(url, r)
+
+deleteComponents(base_url, repo)
