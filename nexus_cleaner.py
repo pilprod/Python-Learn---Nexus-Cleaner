@@ -1,20 +1,10 @@
-from base64 import decode
-from cgi import print_arguments
-from curses import beep
-from multiprocessing.connection import answer_challenge
-from operator import index
 import os
 import re
-from textwrap import indent
-from unicodedata import name
-from unittest import result
-from webbrowser import get
-from dotenv import load_dotenv
 import requests
 import itertools
-import json
 import heapq
 import logging
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -34,6 +24,8 @@ base_url = 'https://' + os.environ["NEXUS_DOMAIN"] + '/service/rest/v1/component
 all_count = int(os.environ["ALL_COUNT"])
 nuget_release_count = int(os.environ["NUGET_RELEASE_COUNT"])
 nuget_count = int(os.environ["NUGET_COUNT"])
+zhp_old = int(os.environ["##_OLD"])
+zhp_new = int(os.environ["##_NEW"])
 
 # Для запуска удаления в .env изменить значение READY_TO_DEL на True
 rtd = os.environ["READY_TO_DEL"]
@@ -76,9 +68,11 @@ def deleteList(url, repo):
   imagesList = itertools.groupby(images, lambda image: image['name'])
 
   # Политика удаления для всех образов
-  if repo != "nuget-hosted":
+  if repo != "nuget-##":
     for name, group in imagesList:
       versions = []
+      versions_zhp_old = []
+      versions_zhp_new = []
       for i in group:
         version = i['version']
         id = i['id']
@@ -93,7 +87,21 @@ def deleteList(url, repo):
             "version" : version,
             "intversion" : ve
           }
-          versions.append(ver)
+          # Все компоненты, кроме ##
+          if name != "##/##/##" \
+            and name != "##/##/##" \
+            and name != "##/##/##" \
+            and name != "##/##/##":
+            versions.append(ver)
+          # ##
+          else:
+            # Старая ##
+            if version[0] == "4":
+              versions_zhp_old.append(ver)
+            # Новая ##
+            if version[0] == "5":
+              versions_zhp_new.append(ver)
+      # Все компоненты, кроме ##
       versionsLarg = heapq.nlargest(all_count, versions, key=getIntVersion)
       for a in versions:
         vers = int(a["intversion"])
@@ -101,8 +109,24 @@ def deleteList(url, repo):
         versi = int(versionSmall["intversion"])
         if vers < versi:
           versionsToDel.append(a)
+      # Старая ##
+      versionsLarg = heapq.nlargest(zhp_old, versions_zhp_old, key=getIntVersion)
+      for a in versions_zhp_old:
+        vers = int(a["intversion"])
+        versionSmall = versionsLarg[-1]
+        versi = int(versionSmall["intversion"])
+        if vers < versi:
+          versionsToDel.append(a)
+      # Новая ##
+      versionsLarg = heapq.nlargest(zhp_new, versions_zhp_new, key=getIntVersion)
+      for a in versions_zhp_new:
+        vers = int(a["intversion"])
+        versionSmall = versionsLarg[-1]
+        versi = int(versionSmall["intversion"])
+        if vers < versi:
+          versionsToDel.append(a)
 
-  # Политика удаленния для репозиторя nuget-hosted
+  # Политика удаленния для репозиторя nuget
   else:
     for name, group in imagesList:
       versions = []
@@ -110,9 +134,7 @@ def deleteList(url, repo):
         version = i['version']
         id = i['id']
         name = i['name']
-
         result = re.search(r'[a-zA-Z]', version)
-
         v = re.sub(r'\D', '', version)
         ve = int(v)
         ver = {
@@ -122,7 +144,7 @@ def deleteList(url, repo):
           "intversion" : ve
         }
         versions.append(ver)
-      # Только цифры
+      # Нугеты только с цифрами
       if result == None:
         versionsLarg = heapq.nlargest(nuget_release_count, versions, key=getIntVersion)
         for a in versions:
@@ -131,7 +153,7 @@ def deleteList(url, repo):
           versi = int(versionSmall["intversion"])
           if vers < versi:
             versionsToDel.append(a)
-      # Остальное
+      # Все остальные нугеты
       else:
         versionsLarg = heapq.nlargest(nuget_count, versions, key=getIntVersion)
         for a in versions:
